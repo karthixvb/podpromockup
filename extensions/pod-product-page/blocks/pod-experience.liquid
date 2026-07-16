@@ -1,6 +1,7 @@
 {% comment %}
   POD Product Experience — type carousel + color swatches.
   Reads merchant namespace `pod` first (storefront-safe), then app-owned `app`.
+  Optionally hides the theme Variant picker Color option on POD products only.
 {% endcomment %}
 
 {% assign related = product.metafields.pod.related_products.value %}
@@ -37,10 +38,17 @@
   {% endfor %}
 {% endif %}
 
+{% assign is_pod_product = false %}
+{% if has_colors or related_count > 0 or type_key != blank %}
+  {% assign is_pod_product = true %}
+{% endif %}
+
 <section
   class="pod-experience"
   data-pod-current-type="{{ type_key }}"
   data-pod-category="{{ category }}"
+  {% if is_pod_product %}data-pod-product="true"{% endif %}
+  {% if has_colors and block.settings.hide_theme_color %}data-pod-hide-theme-color="true"{% endif %}
   {{ block.shopify_attributes }}
 >
   {% if related_count > 1 %}
@@ -91,6 +99,7 @@
         <p><strong>POD Product Experience</strong></p>
         <p>This product has not been synced yet. Open the batch in the app and click <strong>Sync Shopify now</strong>.</p>
         <p>The type carousel appears when the same design is available on two or more garment types.</p>
+        <p>Theme Color picker is only hidden on POD products (when color swatches are present).</p>
       </div>
     {% elsif block.settings.show_hint %}
       <p class="pod-experience__hint">{{ block.settings.hint_text }}</p>
@@ -121,6 +130,13 @@
       "id": "colors_label",
       "label": "Colors label",
       "default": "Color"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_theme_color",
+      "label": "Hide theme Color option (POD products only)",
+      "info": "Only affects products with POD color swatches. Non-POD products keep the normal Variant picker Color.",
+      "default": true
     },
     {
       "type": "checkbox",

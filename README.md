@@ -79,7 +79,8 @@ shopify app deploy
 ```
 
 4. In each store’s theme editor, add the **POD Product Experience** block on the product template.
-5. Hide the theme’s Color variant pills (keep Size); POD swatches handle color.
+5. Keep the theme Variant picker as-is for normal products. On POD products, the block setting **Hide theme Color option (POD products only)** (default on) hides only the theme’s Color control so POD swatches are used. Size stays visible.
+6. Deploy extension changes with `shopify app deploy` (not Vercel).
 
 Metafields are written to the app namespace and mirrored to `pod.*` for Liquid.
 

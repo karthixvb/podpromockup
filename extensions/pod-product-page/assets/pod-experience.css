@@ -96,3 +96,10 @@
 .pod-experience__empty code {
   font-size: 0.8em;
 }
+
+/* Theme Color option — only applied when POD block sets data-pod-hide-theme-color */
+html.pod-hide-theme-color .pod-theme-color-hidden,
+.pod-theme-color-hidden {
+  display: none !important;
+}
+
