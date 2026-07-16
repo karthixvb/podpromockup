@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { syncJobToShopify } from "@/lib/shopify-products";
-import { getActiveShopForApi } from "@/lib/shop-context";
+import { getSession } from "@/lib/session";
 
 type Params = Promise<{ id: string }>;
 
@@ -10,25 +10,34 @@ export async function POST(
   { params }: { params: Params },
 ) {
   try {
-    const ctx = await getActiveShopForApi();
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const { shop, connection } = ctx;
     const { id } = await params;
 
-    const job = await prisma.batchJob.findFirst({
-      where: { id, shop },
+    const session = await getSession();
+    if (!session.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const job = await prisma.batchJob.findUnique({
+      where: { id },
     });
     if (!job) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const connection = await prisma.shopConnection.findFirst({
+      where: { userId: session.userId, shop: job.shop },
+    });
+    if (!connection) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     await prisma.batchJob.update({
       where: { id: job.id },
       data: { shopifySyncStatus: "idle" },
     });
-    await syncJobToShopify(job.id, shop, connection.accessToken);
+
+    // Always sync against the shop that owns this batch job.
+    await syncJobToShopify(job.id, job.shop, connection.accessToken);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync failed";

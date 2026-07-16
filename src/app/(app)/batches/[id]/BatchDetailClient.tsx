@@ -78,10 +78,13 @@ export default function BatchDetailClient({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const autoKick = useRef(false);
+  const actionInFlight = useRef(false);
+  const [pollUntil, setPollUntil] = useState<number>(0);
 
   const job = initialJob;
   const itemCounts = initialCounts;
-  const inProgress = ["pending", "processing"].includes(job.status);
+  const processingInProgress = ["pending", "processing"].includes(job.status);
+  const syncInProgress = job.shopifySyncStatus === "syncing";
   const doneCount = itemCounts.completed;
   const totalCount = job.totalItems || 0;
   const pct =
@@ -91,52 +94,78 @@ export default function BatchDetailClient({
     failCount > 0 && doneCount + failCount >= totalCount;
 
   const runAction = useCallback(
-    async (url: string, body?: Record<string, unknown>) => {
+    (url: string, body?: Record<string, unknown>) => {
+      if (actionInFlight.current) return;
+      actionInFlight.current = true;
+
       setBusy(true);
-      setMessage("");
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: body ? JSON.stringify(body) : undefined,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setMessage(data.error || "Action failed");
-          return;
-        }
-        router.refresh();
-      } catch {
-        setMessage("Network error");
-      } finally {
+      setMessage("Started. Updating progress…");
+      setPollUntil(Date.now() + 120_000);
+
+      // Make the UI feel responsive immediately; polling + refresh will drive updates.
+      setTimeout(() => {
         setBusy(false);
-      }
+      }, 500);
+
+      void fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setMessage(data.error || "Action failed");
+          }
+        })
+        .catch(() => {
+          setMessage("Network error");
+        })
+        .finally(() => {
+          actionInFlight.current = false;
+          setBusy(false);
+        });
     },
     [router],
   );
 
   // Auto-advance processing chunks while job is running
   useEffect(() => {
-    if (!inProgress) {
+    if (!processingInProgress) {
       autoKick.current = false;
       return undefined;
     }
-    if (busy) return undefined;
+    if (busy || actionInFlight.current) return undefined;
     const t = setTimeout(() => {
       void runAction(`/api/batches/${job.id}/process`, { intent: "process" });
       autoKick.current = true;
-    }, autoKick.current ? 800 : 200);
+    }, autoKick.current ? 900 : 300);
     return () => clearTimeout(t);
-  }, [inProgress, busy, job.processedItems, job.status, job.id, runAction]);
+  }, [
+    processingInProgress,
+    busy,
+    job.processedItems,
+    job.status,
+    job.id,
+    runAction,
+  ]);
 
-  // Poll refresh while processing
+  // Stop manual polling after a window
   useEffect(() => {
-    if (!inProgress) return undefined;
-    const t = setInterval(() => {
-      router.refresh();
-    }, 2000);
+    if (pollUntil <= 0) return undefined;
+    const ms = Math.max(0, pollUntil - Date.now());
+    const t = setTimeout(() => setPollUntil(0), ms + 100);
+    return () => clearTimeout(t);
+  }, [pollUntil]);
+
+  // Poll refresh while processing OR syncing OR when an action was just started
+  useEffect(() => {
+    const enabled = processingInProgress || syncInProgress || pollUntil > 0;
+    if (!enabled) return undefined;
+
+    const t = setInterval(() => router.refresh(), 2500);
     return () => clearInterval(t);
-  }, [inProgress, router]);
+  }, [processingInProgress, syncInProgress, pollUntil, router]);
 
   return (
     <div className="space-y-6">
@@ -170,6 +199,10 @@ export default function BatchDetailClient({
           </span>
         </div>
 
+        <p className="text-sm text-muted">
+          Batch shop: <strong className="text-foreground">{shop}</strong>
+        </p>
+
         <div
           role="progressbar"
           aria-valuenow={doneCount}
@@ -192,7 +225,7 @@ export default function BatchDetailClient({
             {doneCount}/{totalCount}
           </strong>{" "}
           complete
-          {inProgress
+          {processingInProgress
             ? "…"
             : doneCount >= totalCount && totalCount > 0
               ? " ✓"

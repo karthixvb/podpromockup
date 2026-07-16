@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/db";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireUser } from "@/lib/session";
 import BatchDetailClient from "./BatchDetailClient";
 
 type Params = Promise<{ id: string }>;
@@ -11,11 +11,11 @@ export default async function BatchDetailPage({
 }: {
   params: Params;
 }) {
-  const { shop } = await requireActiveShop();
+  const user = await requireUser();
   const { id } = await params;
 
   const job = await prisma.batchJob.findFirst({
-    where: { id, shop },
+    where: { id },
     include: {
       templateSet: true,
       pricingConfig: true,
@@ -32,6 +32,15 @@ export default async function BatchDetailPage({
   });
 
   if (!job) notFound();
+
+  // Ownership check: allow viewing the batch regardless of which shop is currently active.
+  const owns = await prisma.shopConnection.findFirst({
+    where: { userId: user.userId, shop: job.shop },
+    select: { id: true },
+  });
+  if (!owns) notFound();
+
+  const shop = job.shop;
 
   const [pending, processing, completed, failed] = await Promise.all([
     prisma.batchItem.count({ where: { jobId: job.id, status: "pending" } }),
