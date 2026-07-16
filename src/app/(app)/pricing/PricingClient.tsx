@@ -115,8 +115,8 @@ export default function PricingClient({ configs }: Props) {
     ).toFixed(2);
   }
 
-  const inputClass =
-    "rounded-lg border border-border px-3 py-2 bg-white w-full";
+  const fieldClass =
+    "rounded-lg border border-border px-3 py-2 bg-white text-foreground";
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -168,7 +168,7 @@ export default function PricingClient({ configs }: Props) {
             <label className="block">
               <span className="text-sm font-medium">Name</span>
               <input
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 ${fieldClass} w-full`}
                 value={form.name}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, name: e.target.value }))
@@ -182,7 +182,7 @@ export default function PricingClient({ configs }: Props) {
               <input
                 type="number"
                 step="0.01"
-                className={`mt-1 ${inputClass}`}
+                className={`mt-1 ${fieldClass} w-full`}
                 value={form.basePrice}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, basePrice: e.target.value }))
@@ -192,29 +192,34 @@ export default function PricingClient({ configs }: Props) {
 
             <div className="space-y-2">
               <p className="text-sm font-semibold">Size adjustments</p>
+              <div className="flex gap-2 text-xs font-medium text-muted px-1 max-w-md">
+                <span className="flex-1 min-w-[5rem]">Size</span>
+                <span className="w-28 shrink-0">Adjustment ($)</span>
+                <span className="w-8 shrink-0" aria-hidden />
+              </div>
               {form.sizeAdjs.map((sa, i) => (
-                <div key={i} className="flex gap-2">
+                <div key={i} className="flex items-center gap-2 max-w-md">
                   <input
-                    placeholder="Size (S, M, 2XL…)"
+                    placeholder="S, M, 2XL…"
                     value={sa.size}
                     onChange={(e) => {
                       const arr = [...form.sizeAdjs];
                       arr[i] = { ...arr[i], size: e.target.value };
                       setForm((f) => ({ ...f, sizeAdjs: arr }));
                     }}
-                    className={inputClass}
+                    className={`${fieldClass} flex-1 min-w-[5rem]`}
                   />
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="+/- $"
+                    placeholder="0"
                     value={sa.adjustment}
                     onChange={(e) => {
                       const arr = [...form.sizeAdjs];
                       arr[i] = { ...arr[i], adjustment: e.target.value };
                       setForm((f) => ({ ...f, sizeAdjs: arr }));
                     }}
-                    className={`${inputClass} w-28 shrink-0`}
+                    className={`${fieldClass} w-28 shrink-0`}
                   />
                   <button
                     type="button"
@@ -249,29 +254,34 @@ export default function PricingClient({ configs }: Props) {
               <p className="text-xs text-muted">
                 Color names must match variant names (e.g. White, Black, Navy).
               </p>
+              <div className="flex gap-2 text-xs font-medium text-muted px-1 max-w-md">
+                <span className="flex-1 min-w-[5rem]">Color</span>
+                <span className="w-28 shrink-0">Adjustment ($)</span>
+                <span className="w-8 shrink-0" aria-hidden />
+              </div>
               {form.colorAdjs.map((ca, i) => (
-                <div key={i} className="flex gap-2">
+                <div key={i} className="flex items-center gap-2 max-w-md">
                   <input
-                    placeholder="Color (Black, White…)"
+                    placeholder="Black, White…"
                     value={ca.color}
                     onChange={(e) => {
                       const arr = [...form.colorAdjs];
                       arr[i] = { ...arr[i], color: e.target.value };
                       setForm((f) => ({ ...f, colorAdjs: arr }));
                     }}
-                    className={inputClass}
+                    className={`${fieldClass} flex-1 min-w-[5rem]`}
                   />
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="+/- $"
+                    placeholder="0"
                     value={ca.adjustment}
                     onChange={(e) => {
                       const arr = [...form.colorAdjs];
                       arr[i] = { ...arr[i], adjustment: e.target.value };
                       setForm((f) => ({ ...f, colorAdjs: arr }));
                     }}
-                    className={`${inputClass} w-28 shrink-0`}
+                    className={`${fieldClass} w-28 shrink-0`}
                   />
                   <button
                     type="button"
