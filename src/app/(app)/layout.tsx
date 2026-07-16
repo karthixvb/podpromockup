@@ -1,34 +1,17 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import AppNav from "@/components/AppNav";
 import LogoutButton from "@/components/LogoutButton";
+import PageSkeleton from "@/components/PageSkeleton";
 import ShopSwitcher from "@/components/ShopSwitcher";
-import {
-  getActiveShopConnection,
-  getShopConnections,
-} from "@/lib/shop-context";
-import { requireUser } from "@/lib/session";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/templates", label: "Templates" },
-  { href: "/template-sets", label: "Template sets" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/batches", label: "Batches" },
-  { href: "/settings", label: "Settings" },
-  { href: "/stores", label: "Stores" },
-] as const;
+import { getAppShopContext } from "@/lib/shop-context";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
-  const shops = await getShopConnections(user.userId);
-  const active = await getActiveShopConnection(
-    user.userId,
-    user.activeShop,
-  );
-  const activeShop = active?.shop ?? null;
+  const { user, shops, shop } = await getAppShopContext();
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -42,22 +25,12 @@ export default async function AppLayout({
           </p>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-background"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <AppNav />
 
         <div className="px-4 py-4 border-t border-border space-y-3">
           <ShopSwitcher
             shops={shops.map((s) => ({ shop: s.shop }))}
-            activeShop={activeShop}
+            activeShop={shop}
           />
           <LogoutButton />
         </div>
@@ -67,18 +40,21 @@ export default async function AppLayout({
         <header className="h-14 shrink-0 border-b border-border bg-white px-6 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">
-              {activeShop ?? "No store selected"}
+              {shop ?? "No store selected"}
             </p>
             <p className="text-xs text-muted truncate">{user.email}</p>
           </div>
           <Link
             href="/batches/new"
+            prefetch
             className="shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white px-3 py-1.5 text-sm font-medium"
           >
             New batch
           </Link>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+        </main>
       </div>
     </div>
   );

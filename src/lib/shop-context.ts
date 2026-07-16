@@ -1,42 +1,59 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import prisma from "@/lib/db";
 import { getSession, requireUser } from "@/lib/session";
 
-export async function getShopConnections(userId: string) {
+export const getShopConnections = cache(async (userId: string) => {
   return prisma.shopConnection.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
   });
-}
+});
+
+/** One DB round-trip: all shops + resolved active connection. */
+export const getAppShopContext = cache(async () => {
+  const user = await requireUser();
+  const shops = await getShopConnections(user.userId);
+
+  let connection =
+    user.activeShop != null
+      ? shops.find((s) => s.shop === user.activeShop) ?? null
+      : null;
+  if (!connection) {
+    connection = shops[0] ?? null;
+  }
+
+  return {
+    user,
+    shops,
+    connection,
+    shop: connection?.shop ?? null,
+  };
+});
 
 export async function getActiveShopConnection(
   userId: string,
   activeShop?: string,
 ) {
+  const shops = await getShopConnections(userId);
   if (activeShop) {
-    const owned = await prisma.shopConnection.findUnique({
-      where: { userId_shop: { userId, shop: activeShop } },
-    });
+    const owned = shops.find((s) => s.shop === activeShop);
     if (owned) return owned;
   }
-
-  return prisma.shopConnection.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-  });
+  return shops[0] ?? null;
 }
 
-export async function requireActiveShop() {
-  const user = await requireUser();
-  const connection = await getActiveShopConnection(
-    user.userId,
-    user.activeShop,
-  );
-  if (!connection) {
+export const requireActiveShop = cache(async () => {
+  const ctx = await getAppShopContext();
+  if (!ctx.connection) {
     redirect("/stores");
   }
-  return { ...user, connection, shop: connection.shop };
-}
+  return {
+    ...ctx.user,
+    connection: ctx.connection,
+    shop: ctx.connection.shop,
+  };
+});
 
 /** API-safe: returns null instead of redirecting when unauthenticated / no shop. */
 export async function getActiveShopForApi() {

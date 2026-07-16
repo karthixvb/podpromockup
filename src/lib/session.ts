@@ -1,6 +1,7 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 export type SessionData = {
   userId?: string;
@@ -22,21 +23,21 @@ export const sessionOptions: SessionOptions = {
   },
 };
 
-export async function getSession() {
+export const getSession = cache(async () => {
   return getIronSession<SessionData>(await cookies(), sessionOptions);
-}
+});
 
-export async function requireUser() {
+export const requireUser = cache(async () => {
   const session = await getSession();
   if (!session.userId) {
     redirect("/login");
   }
   return {
     userId: session.userId,
-    email: session.email,
+    email: session.email ?? "",
     activeShop: session.activeShop,
   };
-}
+});
 
 export async function setSessionUser(userId: string, email: string) {
   const session = await getSession();
