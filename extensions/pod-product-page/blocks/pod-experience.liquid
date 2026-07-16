@@ -1,0 +1,139 @@
+{% comment %}
+  POD Product Experience — type carousel + color swatches.
+  Reads merchant namespace `pod` first (storefront-safe), then app-owned `app`.
+{% endcomment %}
+
+{% assign related = product.metafields.pod.related_products.value %}
+{% if related == blank %}
+  {% assign related = product.metafields.app.related_products.value %}
+{% endif %}
+
+{% assign color_map = product.metafields.pod.color_map.value %}
+{% if color_map == blank %}
+  {% assign color_map = product.metafields.app.color_map.value %}
+{% endif %}
+
+{% assign type_key = product.metafields.pod.product_type_key.value %}
+{% if type_key == blank %}
+  {% assign type_key = product.metafields.app.product_type_key.value %}
+{% endif %}
+
+{% assign category = product.metafields.pod.category.value %}
+{% if category == blank %}
+  {% assign category = product.metafields.app.category.value %}
+{% endif %}
+
+{% assign related_count = 0 %}
+{% if related != blank %}
+  {% for _ in related %}
+    {% assign related_count = related_count | plus: 1 %}
+  {% endfor %}
+{% endif %}
+
+{% assign has_colors = false %}
+{% if color_map != blank %}
+  {% for _ in color_map %}
+    {% assign has_colors = true %}
+  {% endfor %}
+{% endif %}
+
+<section
+  class="pod-experience"
+  data-pod-current-type="{{ type_key }}"
+  data-pod-category="{{ category }}"
+  {{ block.shopify_attributes }}
+>
+  {% if related_count > 1 %}
+  <div class="pod-experience__types">
+    <p class="pod-experience__label">{{ block.settings.types_label }}</p>
+    <div class="pod-experience__type-list" role="list">
+      {% for item in related %}
+        <a
+          role="listitem"
+          class="pod-experience__type{% if item.typeKey == type_key %} is-active{% endif %}"
+          href="/products/{{ item.handle }}"
+        >
+          {% if item.thumbnail != blank %}
+            <img src="{{ item.thumbnail | escape }}" alt="{{ item.type | escape }}" width="72" height="72" loading="lazy">
+          {% endif %}
+          <span class="pod-experience__type-name">{{ item.type }}</span>
+          {% if item.priceFrom != blank %}
+            <span class="pod-experience__type-price">from ${{ item.priceFrom }}</span>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if has_colors %}
+  <div class="pod-experience__colors" data-pod-color-map>
+    <p class="pod-experience__label">{{ block.settings.colors_label }}</p>
+    <div class="pod-experience__swatches">
+      {% for c in color_map %}
+        <button
+          type="button"
+          class="pod-experience__swatch"
+          data-pod-color="{{ c.name | escape }}"
+          data-pod-image="{{ c.image | escape }}"
+          style="background-color: {{ c.hex | default: '#ccc' }}"
+          title="{{ c.name | escape }}"
+          aria-label="{{ c.name | escape }}"
+        ></button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if related_count <= 1 and has_colors == false %}
+    {% if request.design_mode %}
+      <div class="pod-experience__empty">
+        <p><strong>POD Product Experience</strong></p>
+        <p>This product has not been synced yet. Open the batch in the app and click <strong>Sync Shopify now</strong>.</p>
+        <p>The type carousel appears when the same design is available on two or more garment types.</p>
+      </div>
+    {% elsif block.settings.show_hint %}
+      <p class="pod-experience__hint">{{ block.settings.hint_text }}</p>
+    {% endif %}
+  {% elsif block.settings.show_hint %}
+    <p class="pod-experience__hint">{{ block.settings.hint_text }}</p>
+  {% endif %}
+</section>
+
+{% schema %}
+{
+  "name": "POD Product Experience",
+  "target": "section",
+  "stylesheet": "pod-experience.css",
+  "javascript": "pod-experience.js",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "text",
+      "id": "types_label",
+      "label": "Types label",
+      "default": "Other products with this design"
+    },
+    {
+      "type": "text",
+      "id": "colors_label",
+      "label": "Colors label",
+      "default": "Color"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_hint",
+      "label": "Show hint text",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "hint_text",
+      "label": "Hint text",
+      "default": "Switch garment type above — each type is its own product with matching design."
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,98 @@
+.pod-experience {
+  margin: 1rem 0 1.5rem;
+}
+
+.pod-experience__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.6rem;
+}
+
+.pod-experience__type-list {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.pod-experience__type {
+  flex: 0 0 auto;
+  width: 96px;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 0.4rem;
+}
+
+.pod-experience__type.is-active,
+.pod-experience__type:hover {
+  border-color: #111;
+}
+
+.pod-experience__type img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto 0.35rem;
+}
+
+.pod-experience__type-name {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pod-experience__type-price {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.pod-experience__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pod-experience__swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pod-experience__swatch.is-active {
+  border-color: #111;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #111;
+}
+
+.pod-experience__hint {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
+
+.pod-experience__empty {
+  padding: 0.85rem 1rem;
+  border: 1px dashed #c9cccf;
+  border-radius: 8px;
+  background: #f6f6f7;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.pod-experience__empty p {
+  margin: 0 0 0.35rem;
+}
+
+.pod-experience__empty code {
+  font-size: 0.8em;
+}

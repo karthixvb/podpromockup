@@ -1,0 +1,86 @@
+# POD Pro Webapp — Shopify Partner app config
+# Replace client_id and URLs with your Partner Dashboard app values.
+# Deploy theme extension: `shopify app deploy` from this directory.
+
+client_id = "YOUR_SHOPIFY_API_KEY"
+application_url = "https://YOUR_HOST"
+embedded = false
+name = "POD Pro"
+
+[access_scopes]
+scopes = "write_products,read_products,write_files,read_files"
+
+[product.metafields.app.design_sku]
+type = "single_line_text_field"
+name = "POD Design SKU"
+description = "Shared design identifier across garment types"
+
+  [product.metafields.app.design_sku.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[product.metafields.app.product_type_key]
+type = "single_line_text_field"
+name = "POD Product Type Key"
+description = "Machine key e.g. tshirt, hoodie, tank"
+
+  [product.metafields.app.product_type_key.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[product.metafields.app.category]
+type = "single_line_text_field"
+name = "POD Category"
+description = "mens, womens, kids, baby, unisex"
+
+  [product.metafields.app.category.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[product.metafields.app.group_id]
+type = "single_line_text_field"
+name = "POD Group ID"
+description = "Links related garment-type products for one design"
+
+  [product.metafields.app.group_id.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[product.metafields.app.related_products]
+type = "json"
+name = "POD Related Products"
+description = "JSON list of related type products for the storefront carousel"
+
+  [product.metafields.app.related_products.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[product.metafields.app.color_map]
+type = "json"
+name = "POD Color Map"
+description = "Color name, hex, and primary image for swatches"
+
+  [product.metafields.app.color_map.access]
+  admin = "merchant_read"
+  storefront = "public_read"
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[auth]
+redirect_urls = [
+  "https://YOUR_HOST/api/shopify/auth/callback",
+  "http://localhost:3000/api/shopify/auth/callback"
+]
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
