@@ -76,15 +76,24 @@ export default function BatchDetailClient({
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [actionLabel, setActionLabel] = useState("");
   const autoKick = useRef(false);
   const actionInFlight = useRef(false);
   const [pollUntil, setPollUntil] = useState<number>(0);
+  const [showDoneFlash, setShowDoneFlash] = useState(false);
+  const wasWorking = useRef(false);
 
   const job = initialJob;
   const itemCounts = initialCounts;
   const processingInProgress = ["pending", "processing"].includes(job.status);
   const syncInProgress = job.shopifySyncStatus === "syncing";
+  const working =
+    processingInProgress ||
+    syncInProgress ||
+    busy ||
+    actionInFlight.current ||
+    Boolean(actionLabel);
   const doneCount = itemCounts.completed;
   const totalCount = job.totalItems || 0;
   const pct =
@@ -93,19 +102,40 @@ export default function BatchDetailClient({
   const barCritical =
     failCount > 0 && doneCount + failCount >= totalCount;
 
+  const syncPct =
+    job.shopifySyncStatus === "synced"
+      ? 100
+      : syncInProgress
+        ? Math.min(95, Math.max(pct, 40))
+        : job.shopifySyncStatus === "failed"
+          ? 0
+          : processingInProgress
+            ? Math.min(90, pct)
+            : job.status === "completed"
+              ? 100
+              : pct;
+
+  const progressTitle = syncInProgress
+    ? "Syncing products to Shopify…"
+    : processingInProgress
+      ? `Composing mockups… ${doneCount}/${totalCount}`
+      : actionLabel || "Updating…";
+
   const runAction = useCallback(
-    (url: string, body?: Record<string, unknown>) => {
+    (url: string, body?: Record<string, unknown>, label?: string) => {
       if (actionInFlight.current) return;
       actionInFlight.current = true;
 
       setBusy(true);
-      setMessage("Started. Updating progress…");
-      setPollUntil(Date.now() + 120_000);
+      setError("");
+      setActionLabel(label || "Updating…");
+      setShowDoneFlash(false);
+      setPollUntil(Date.now() + 180_000);
 
       // Make the UI feel responsive immediately; polling + refresh will drive updates.
       setTimeout(() => {
         setBusy(false);
-      }, 500);
+      }, 400);
 
       void fetch(url, {
         method: "POST",
@@ -115,19 +145,58 @@ export default function BatchDetailClient({
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            setMessage(data.error || "Action failed");
+            setError(data.error || "Action failed");
+            setActionLabel("");
           }
         })
         .catch(() => {
-          setMessage("Network error");
+          setError("Network error");
+          setActionLabel("");
         })
         .finally(() => {
           actionInFlight.current = false;
           setBusy(false);
+          router.refresh();
         });
     },
     [router],
   );
+
+  // Clear transient "updating" label once server reports idle/finished
+  useEffect(() => {
+    const idle =
+      !processingInProgress &&
+      !syncInProgress &&
+      ["completed", "failed", "paused"].includes(job.status);
+
+    if (idle && actionLabel) {
+      setActionLabel("");
+      setPollUntil(0);
+    }
+  }, [
+    processingInProgress,
+    syncInProgress,
+    job.status,
+    job.shopifySyncStatus,
+    actionLabel,
+  ]);
+
+  // Flash a short "Done" banner when work finishes
+  useEffect(() => {
+    const nowWorking = processingInProgress || syncInProgress;
+    if (nowWorking) {
+      wasWorking.current = true;
+      return;
+    }
+    if (wasWorking.current && job.status === "completed") {
+      wasWorking.current = false;
+      setShowDoneFlash(true);
+      setActionLabel("");
+      const t = setTimeout(() => setShowDoneFlash(false), 3500);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [processingInProgress, syncInProgress, job.status]);
 
   // Auto-advance processing chunks while job is running
   useEffect(() => {
@@ -137,7 +206,11 @@ export default function BatchDetailClient({
     }
     if (busy || actionInFlight.current) return undefined;
     const t = setTimeout(() => {
-      void runAction(`/api/batches/${job.id}/process`, { intent: "process" });
+      void runAction(
+        `/api/batches/${job.id}/process`,
+        { intent: "process" },
+        "Composing mockups…",
+      );
       autoKick.current = true;
     }, autoKick.current ? 900 : 300);
     return () => clearTimeout(t);
@@ -169,9 +242,49 @@ export default function BatchDetailClient({
 
   return (
     <div className="space-y-6">
-      {message ? (
+      {error ? (
         <p className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
-          {message}
+          {error}
+        </p>
+      ) : null}
+
+      {working ? (
+        <div className="rounded-lg border border-accent/25 bg-accent/5 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 text-sm text-foreground">
+            <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+            <span className="font-medium">{progressTitle}</span>
+          </div>
+          <div
+            role="progressbar"
+            aria-valuenow={syncPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={progressTitle}
+            className="w-full h-2 rounded-full bg-border overflow-hidden"
+          >
+            <div
+              className={`h-full bg-accent transition-[width] duration-500 ${
+                syncInProgress && !processingInProgress
+                  ? "animate-pulse"
+                  : ""
+              }`}
+              style={{ width: `${Math.min(100, Math.max(8, syncPct))}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted">
+            {syncInProgress
+              ? "Publishing products to Shopify channels…"
+              : processingInProgress
+                ? `${pct}% mockups · ${itemCounts.pending} pending · ${itemCounts.processing} in progress`
+                : "Waiting for server update…"}
+          </p>
+        </div>
+      ) : null}
+
+      {showDoneFlash && !working ? (
+        <p className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
+          Done — {doneCount}/{totalCount} mockups
+          {job.shopifySyncStatus === "synced" ? " · Shopify synced" : ""}
         </p>
       ) : null}
 
@@ -241,11 +354,13 @@ export default function BatchDetailClient({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || working}
             onClick={() =>
-              runAction(`/api/batches/${job.id}/process`, {
-                intent: "process",
-              })
+              runAction(
+                `/api/batches/${job.id}/process`,
+                { intent: "process" },
+                "Composing mockups…",
+              )
             }
             className="rounded-lg bg-accent hover:bg-accent-hover text-white px-3 py-1.5 text-sm font-medium disabled:opacity-60"
           >
@@ -256,9 +371,11 @@ export default function BatchDetailClient({
               type="button"
               disabled={busy}
               onClick={() =>
-                runAction(`/api/batches/${job.id}/process`, {
-                  intent: "pause",
-                })
+                runAction(
+                  `/api/batches/${job.id}/process`,
+                  { intent: "pause" },
+                  "Pausing…",
+                )
               }
               className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-background disabled:opacity-60"
             >
@@ -269,9 +386,11 @@ export default function BatchDetailClient({
               type="button"
               disabled={busy}
               onClick={() =>
-                runAction(`/api/batches/${job.id}/process`, {
-                  intent: "resume",
-                })
+                runAction(
+                  `/api/batches/${job.id}/process`,
+                  { intent: "resume" },
+                  "Resuming…",
+                )
               }
               className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-background disabled:opacity-60"
             >
@@ -281,8 +400,14 @@ export default function BatchDetailClient({
           {job.status === "completed" ? (
             <button
               type="button"
-              disabled={busy}
-              onClick={() => runAction(`/api/batches/${job.id}/sync`)}
+              disabled={busy || syncInProgress}
+              onClick={() =>
+                runAction(
+                  `/api/batches/${job.id}/sync`,
+                  undefined,
+                  "Syncing to Shopify…",
+                )
+              }
               className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-background disabled:opacity-60"
             >
               Sync Shopify now
@@ -292,11 +417,13 @@ export default function BatchDetailClient({
             <>
               <button
                 type="button"
-                disabled={busy || failCount === 0}
+                disabled={busy || failCount === 0 || working}
                 onClick={() =>
-                  runAction(`/api/batches/${job.id}/recompose`, {
-                    scope: "failed",
-                  })
+                  runAction(
+                    `/api/batches/${job.id}/recompose`,
+                    { scope: "failed" },
+                    "Recomposing failed items…",
+                  )
                 }
                 className="rounded-lg border border-danger/40 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
               >
@@ -304,11 +431,13 @@ export default function BatchDetailClient({
               </button>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || working}
                 onClick={() =>
-                  runAction(`/api/batches/${job.id}/recompose`, {
-                    scope: "all",
-                  })
+                  runAction(
+                    `/api/batches/${job.id}/recompose`,
+                    { scope: "all" },
+                    "Recomposing all items…",
+                  )
                 }
                 className="rounded-lg border border-danger/40 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
               >
