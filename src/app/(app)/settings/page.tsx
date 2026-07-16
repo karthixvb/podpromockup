@@ -135,8 +135,8 @@ export default async function SettingsPage() {
         </form>
       </section>
 
-      <section className="bg-panel border border-border rounded-lg p-4 space-y-3">
-        <h2 className="text-base font-semibold">Image processing</h2>
+      <section id="health" className="bg-panel border border-border rounded-lg p-4 space-y-3 scroll-mt-6">
+        <h2 className="text-base font-semibold">System health</h2>
         <ul className="space-y-2 text-sm">
           <li className="flex items-center gap-2">
             <span
@@ -148,12 +148,7 @@ export default async function SettingsPage() {
             >
               {hasLambda ? "Ready" : "Needs setup"}
             </span>
-            <span>
-              Mockup generation —{" "}
-              <code className="text-xs bg-background px-1 rounded">
-                AWS_LAMBDA_COMPOSITE_URL
-              </code>
-            </span>
+            <span>Image processing (compose)</span>
           </li>
           <li className="flex items-center gap-2">
             <span
@@ -165,27 +160,30 @@ export default async function SettingsPage() {
             >
               {hasS3 ? "Ready" : "Needs setup"}
             </span>
-            <span>
-              Image storage —{" "}
-              <code className="text-xs bg-background px-1 rounded">
-                AWS_S3_BUCKET
-              </code>
-            </span>
+            <span>Image storage</span>
           </li>
         </ul>
         {!hasLambda || !hasS3 ? (
           <p className="text-sm text-muted">
-            Finish image processing setup before running production batches.
+            Contact your administrator to finish processing setup before large
+            production batches.
           </p>
-        ) : null}
+        ) : (
+          <p className="text-sm text-muted">
+            Processing stack is ready for this environment.
+          </p>
+        )}
       </section>
 
       <section className="bg-panel border border-border rounded-lg p-4 space-y-3">
         <h2 className="text-base font-semibold">Commercial checklist</h2>
         <ul className="space-y-2 text-sm list-disc pl-5">
           <li>
-            In your theme, add the <strong>POD Product Experience</strong> block
-            and hide the Color option in the variant picker (keep Size only).
+            Follow the{" "}
+            <a href="/storefront" className="text-accent font-medium">
+              Storefront guide
+            </a>{" "}
+            — add the POD block; Color is auto-hidden only on POD products.
           </li>
           <li>
             Install the <strong>Google &amp; YouTube</strong> sales channel for
@@ -197,8 +195,14 @@ export default async function SettingsPage() {
           </li>
           <li>
             Re-syncing updates existing products for the same design and type —
-            it does not create duplicates. Remove any older duplicate products
-            manually.
+            it does not create duplicates.
+          </li>
+          <li>
+            After changing Shopify scopes, reconnect the store under{" "}
+            <a href="/stores" className="text-accent font-medium">
+              Stores
+            </a>
+            .
           </li>
         </ul>
       </section>

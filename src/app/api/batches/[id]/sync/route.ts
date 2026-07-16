@@ -36,11 +36,21 @@ export async function POST(
       data: { shopifySyncStatus: "idle" },
     });
 
-    // Always sync against the shop that owns this batch job.
-    await syncJobToShopify(job.id, job.shop, connection.accessToken);
-    return NextResponse.json({ ok: true });
+    const summary = await syncJobToShopify(
+      job.id,
+      job.shop,
+      connection.accessToken,
+    );
+    return NextResponse.json({
+      ok: true,
+      summary,
+      message: `Synced ${summary.products} products (${summary.created} created, ${summary.updated} updated, ${summary.published} published)`,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const friendly = message.includes("publications")
+      ? "Missing publication scopes. Reconnect the store under Stores after updating SCOPES."
+      : message;
+    return NextResponse.json({ error: friendly }, { status: 500 });
   }
 }

@@ -16,6 +16,17 @@ type PricingOption = {
   name: string;
 };
 
+const SAMPLE_DESIGNS_JSON = `[
+  {
+    "sku": "DEMO-FAITH-01",
+    "title": "Faith Over Fear",
+    "description": "Premium print-on-demand sample design.",
+    "tags": ["demo", "pod"],
+    "lightImageUrl": "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
+    "darkImageUrl": "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png"
+  }
+]`;
+
 type Props = {
   sets: TemplateSetOption[];
   pricing: PricingOption[];
@@ -193,9 +204,23 @@ export default function NewBatchForm({
       </label>
 
       <div className="rounded-lg border border-dashed border-border bg-background p-4 space-y-3">
-        <p className="text-sm font-semibold">
-          Designs JSON — upload a file or paste
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold">
+            Designs JSON — upload a file or paste
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setDesignsJson(SAMPLE_DESIGNS_JSON);
+              setFileName("sample-designs.json");
+              if (!name.trim()) setName("Sample batch");
+              setError("");
+            }}
+            className="text-xs font-medium text-accent hover:underline"
+          >
+            Load sample JSON
+          </button>
+        </div>
         <label className="block text-sm">
           <span className="text-xs text-muted">
             Upload file <code>.json</code>

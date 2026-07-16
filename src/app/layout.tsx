@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "POD Pro",
-  description: "Multi-store print-on-demand product generator",
+  title: {
+    default: "POD Pro",
+    template: "%s · POD Pro",
+  },
+  description:
+    "Multi-store print-on-demand admin — templates, batches, Shopify sync, and storefront experience.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -27,7 +35,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

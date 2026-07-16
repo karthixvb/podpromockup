@@ -1,14 +1,32 @@
-# POD Pro Webapp — Shopify Partner app config
-# Replace client_id and URLs with your Partner Dashboard app values.
-# Deploy theme extension: `shopify app deploy` from this directory.
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "YOUR_SHOPIFY_API_KEY"
-application_url = "https://YOUR_HOST"
+client_id = "0757a2f6784196c9cff74aef7fe787b5"
+name = "POD Pro Mockup"
+application_url = "https://podpromockup.vercel.app"
 embedded = false
-name = "POD Pro"
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/uninstalled"
+  topics = [ "app/uninstalled" ]
 
 [access_scopes]
-scopes = "write_products,read_products,write_files,read_files,read_publications,write_publications"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_files,write_files,read_products,write_products,read_publications,write_publications"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://podpromockup.vercel.app/api/shopify/auth/callback" ]
 
 [product.metafields.app.design_sku]
 type = "single_line_text_field"
@@ -63,24 +81,3 @@ description = "Color name, hex, and primary image for swatches"
   [product.metafields.app.color_map.access]
   admin = "merchant_read"
   storefront = "public_read"
-
-[webhooks]
-api_version = "2025-01"
-
-  [[webhooks.subscriptions]]
-  uri = "/api/shopify/webhooks/uninstalled"
-  topics = [ "app/uninstalled" ]
-
-  [[webhooks.subscriptions]]
-  uri = "/api/shopify/webhooks/scopes_update"
-  topics = [ "app/scopes_update" ]
-
-[auth]
-redirect_urls = [
-  "https://YOUR_HOST/api/shopify/auth/callback",
-  "http://localhost:3000/api/shopify/auth/callback"
-]
-
-[build]
-include_config_on_deploy = true
-automatically_update_urls_on_dev = true

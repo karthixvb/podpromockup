@@ -2,6 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import EmptyState from "@/components/EmptyState";
+import { useToast } from "@/components/ToastProvider";
 
 export type StoreRow = {
   shop: string;
@@ -17,9 +20,13 @@ type Props = {
 
 export default function StoresClient({ stores, connected, error }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [shopInput, setShopInput] = useState("");
   const [busyShop, setBusyShop] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [pendingDisconnect, setPendingDisconnect] = useState<string | null>(
+    null,
+  );
 
   function onConnect(e: FormEvent) {
     e.preventDefault();
@@ -40,18 +47,23 @@ export default function StoresClient({ stores, connected, error }: Props) {
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || "Could not switch store");
+        toast.push(data.error || "Could not switch store", "error");
         return;
       }
+      toast.push(`Switched to ${shop}`, "success");
       router.refresh();
     } catch {
       setMessage("Network error");
+      toast.push("Network error", "error");
     } finally {
       setBusyShop(null);
     }
   }
 
-  async function disconnectStore(shop: string) {
-    if (!confirm(`Disconnect ${shop}?`)) return;
+  async function confirmDisconnect() {
+    if (!pendingDisconnect) return;
+    const shop = pendingDisconnect;
+    setPendingDisconnect(null);
     setBusyShop(shop);
     setMessage("");
     try {
@@ -63,11 +75,14 @@ export default function StoresClient({ stores, connected, error }: Props) {
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || "Could not disconnect store");
+        toast.push(data.error || "Could not disconnect store", "error");
         return;
       }
+      toast.push(`Disconnected ${shop}`, "success");
       router.refresh();
     } catch {
       setMessage("Network error");
+      toast.push("Network error", "error");
     } finally {
       setBusyShop(null);
     }
@@ -75,24 +90,36 @@ export default function StoresClient({ stores, connected, error }: Props) {
 
   return (
     <div className="space-y-8">
+      <ConfirmDialog
+        open={Boolean(pendingDisconnect)}
+        title="Disconnect store?"
+        description={`Remove OAuth access for ${pendingDisconnect}. Existing POD data for this shop stays in the database but sync will stop until you reconnect.`}
+        danger
+        confirmLabel="Disconnect"
+        busy={busyShop === pendingDisconnect}
+        onCancel={() => setPendingDisconnect(null)}
+        onConfirm={() => void confirmDisconnect()}
+      />
+
       {connected ? (
         <p className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
-          Store connected successfully.
+          Store connected successfully. Continue setup from the dashboard
+          checklist.
         </p>
       ) : null}
       {error === "oauth" ? (
         <p className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
-          Shopify connection failed. Please try again.
+          Shopify connection failed. Check App URL, Redirect URL, and SCOPES,
+          then try again.
         </p>
       ) : null}
-      {message ? (
-        <p className="text-sm text-danger">{message}</p>
-      ) : null}
+      {message ? <p className="text-sm text-danger">{message}</p> : null}
 
       <section className="rounded-xl border border-border bg-panel p-6 shadow-sm">
         <h2 className="text-lg font-semibold tracking-tight">Connect a store</h2>
         <p className="mt-1 text-sm text-muted">
-          Enter your Shopify domain to authorize POD Pro.
+          Enter your Shopify domain to authorize POD Pro. After changing app
+          scopes, reconnect so publications publish correctly.
         </p>
         <form onSubmit={onConnect} className="mt-4 flex flex-col gap-3 sm:flex-row">
           <input
@@ -115,7 +142,14 @@ export default function StoresClient({ stores, connected, error }: Props) {
       <section className="rounded-xl border border-border bg-panel p-6 shadow-sm">
         <h2 className="text-lg font-semibold tracking-tight">Connected stores</h2>
         {stores.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No stores connected yet.</p>
+          <div className="mt-4">
+            <EmptyState
+              title="No stores connected"
+              description="Connect your first Shopify shop to start templates, batches, and sync."
+              actionHref="#connect"
+              actionLabel="Connect above"
+            />
+          </div>
         ) : (
           <ul className="mt-4 divide-y divide-border">
             {stores.map((store) => (
@@ -152,7 +186,7 @@ export default function StoresClient({ stores, connected, error }: Props) {
                   <button
                     type="button"
                     disabled={busyShop === store.shop}
-                    onClick={() => disconnectStore(store.shop)}
+                    onClick={() => setPendingDisconnect(store.shop)}
                     className="rounded-lg border border-danger/40 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/5 disabled:opacity-60"
                   >
                     Disconnect

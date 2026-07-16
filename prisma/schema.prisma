@@ -148,21 +148,23 @@ model PricingConfig {
 }
 
 model BatchJob {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   shop               String
   name               String
   templateSetId      String?
   pricingConfigId    String?
-  status             String   @default("pending")
-  shopifySyncStatus  String   @default("idle")
-  autoPublishShopify Boolean  @default(true)
-  createAsDraft      Boolean  @default(false)
-  totalItems         Int      @default(0)
-  processedItems     Int      @default(0)
-  failedItems        Int      @default(0)
+  status             String    @default("pending")
+  shopifySyncStatus  String    @default("idle")
+  autoPublishShopify Boolean   @default(true)
+  createAsDraft      Boolean   @default(false)
+  totalItems         Int       @default(0)
+  processedItems     Int       @default(0)
+  failedItems        Int       @default(0)
   errorMessage       String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  syncSummary        String?
+  lastSyncedAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   templateSet   TemplateSet?         @relation(fields: [templateSetId], references: [id], onDelete: SetNull)
   pricingConfig PricingConfig?       @relation(fields: [pricingConfigId], references: [id], onDelete: SetNull)
@@ -222,4 +224,17 @@ model ShopifyProductLink {
 
   @@unique([shop, designSku, productTypeKey])
   @@index([shop, groupId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  shop      String
+  action    String
+  message   String
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@index([userId, createdAt])
 }

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import prisma from "@/lib/db";
+import { getOnboardingSteps } from "@/lib/onboarding";
 import { requireActiveShop } from "@/lib/shop-context";
+import OnboardingChecklist from "@/components/OnboardingChecklist";
 
 function statusClass(status: string) {
   switch (status) {
@@ -32,6 +34,7 @@ export default async function DashboardPage() {
     syncedProducts,
     failedSync,
     recent,
+    onboarding,
   ] = await Promise.all([
     prisma.template.count({ where: { shop } }),
     prisma.templateSet.count({ where: { shop } }),
@@ -48,11 +51,12 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
+    getOnboardingSteps(shop),
   ]);
 
   const hasLambda = Boolean(process.env.AWS_LAMBDA_COMPOSITE_URL);
   const hasS3 = Boolean(process.env.AWS_S3_BUCKET);
-  const ready = templates > 0 && sets > 0 && hasLambda && hasS3;
+  const showOnboarding = onboarding.completed < onboarding.total;
 
   const kpis: { label: string; value: number; warn?: boolean }[] = [
     { label: "Templates", value: templates },
@@ -70,9 +74,7 @@ export default async function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted mt-1">
-            Overview for {shop}
-          </p>
+          <p className="text-sm text-muted mt-1">Overview for {shop}</p>
         </div>
         <Link
           href="/batches/new"
@@ -81,6 +83,14 @@ export default async function DashboardPage() {
           New batch
         </Link>
       </div>
+
+      {showOnboarding ? (
+        <OnboardingChecklist
+          steps={onboarding.steps}
+          completed={onboarding.completed}
+          total={onboarding.total}
+        />
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpi) => (
@@ -102,48 +112,29 @@ export default async function DashboardPage() {
 
       <section className="bg-panel border border-border rounded-lg p-4 space-y-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-base font-semibold">Go-live readiness</h2>
+          <h2 className="text-base font-semibold">Systems</h2>
           <span
             className={`text-xs font-medium px-2 py-0.5 rounded ${
-              ready
+              hasLambda && hasS3
                 ? "bg-accent/10 text-accent"
                 : "bg-warning/10 text-warning"
             }`}
           >
-            {ready ? "Ready to run batches" : "Setup incomplete"}
+            {hasLambda && hasS3 ? "Processing ready" : "Needs configuration"}
           </span>
         </div>
-        <ul className="space-y-2 text-sm">
-          <li className="flex gap-2">
-            <span className="w-4 shrink-0">{templates > 0 ? "✓" : "✗"}</span>
-            <span>
-              Templates —{" "}
-              <Link href="/templates" className="text-accent font-medium">
-                manage
-              </Link>
-            </span>
+        <ul className="grid gap-2 sm:grid-cols-2 text-sm">
+          <li>Image processing: {hasLambda ? "Ready" : "Not configured"}</li>
+          <li>Image storage: {hasS3 ? "Ready" : "Not configured"}</li>
+          <li>
+            <Link href="/storefront" className="text-accent font-medium">
+              Storefront setup guide
+            </Link>
           </li>
-          <li className="flex gap-2">
-            <span className="w-4 shrink-0">{sets > 0 ? "✓" : "✗"}</span>
-            <span>
-              Template set —{" "}
-              <Link href="/template-sets" className="text-accent font-medium">
-                manage
-              </Link>
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="w-4 shrink-0">{hasLambda ? "✓" : "✗"}</span>
-            <span>
-              Lambda composite URL{" "}
-              {hasLambda ? "(configured)" : "(missing AWS_LAMBDA_COMPOSITE_URL)"}
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="w-4 shrink-0">{hasS3 ? "✓" : "✗"}</span>
-            <span>
-              S3 bucket {hasS3 ? "(configured)" : "(missing AWS_S3_BUCKET)"}
-            </span>
+          <li>
+            <Link href="/activity" className="text-accent font-medium">
+              View activity log
+            </Link>
           </li>
         </ul>
       </section>
@@ -156,7 +147,12 @@ export default async function DashboardPage() {
           </Link>
         </div>
         {recent.length === 0 ? (
-          <p className="text-sm text-muted">No batches yet.</p>
+          <p className="text-sm text-muted">
+            No batches yet.{" "}
+            <Link href="/batches/new" className="text-accent font-medium">
+              Create one
+            </Link>
+          </p>
         ) : (
           <ul className="divide-y divide-border border border-border rounded-lg overflow-hidden">
             {recent.map((job) => (

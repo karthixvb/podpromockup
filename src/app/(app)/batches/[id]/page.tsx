@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/db";
+import { parseJson } from "@/lib/pod";
 import { requireUser } from "@/lib/session";
 import BatchDetailClient from "./BatchDetailClient";
 
@@ -33,7 +34,6 @@ export default async function BatchDetailPage({
 
   if (!job) notFound();
 
-  // Ownership check: allow viewing the batch regardless of which shop is currently active.
   const owns = await prisma.shopConnection.findFirst({
     where: { userId: user.userId, shop: job.shop },
     select: { id: true },
@@ -54,6 +54,12 @@ export default async function BatchDetailPage({
   ]);
 
   const itemCounts = { pending, processing, completed, failed };
+  const syncSummary = parseJson<{
+    created: number;
+    updated: number;
+    published: number;
+    products: number;
+  } | null>(job.syncSummary, null);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -80,6 +86,8 @@ export default async function BatchDetailPage({
           failedItems: job.failedItems,
           errorMessage: job.errorMessage,
           templateSetName: job.templateSet?.name ?? null,
+          syncSummary,
+          lastSyncedAt: job.lastSyncedAt?.toISOString() ?? null,
         }}
         itemCounts={itemCounts}
         productLinks={job.productLinks.map((link) => ({

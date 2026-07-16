@@ -1,6 +1,7 @@
 import Link from "next/link";
 import prisma from "@/lib/db";
 import { requireActiveShop } from "@/lib/shop-context";
+import EmptyState from "@/components/EmptyState";
 
 function statusClass(status: string) {
   switch (status) {
@@ -56,13 +57,16 @@ export default async function BatchesPage() {
 
       <section className="bg-panel border border-border rounded-lg overflow-hidden">
         {jobs.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            No batches.{" "}
-            <Link href="/batches/new" className="text-accent font-medium">
-              Create one
-            </Link>{" "}
-            from a Template Set + design JSON.
-          </p>
+          <div className="p-2">
+            <EmptyState
+              title="No batches yet"
+              description="Create a batch from a Template Set and a designs JSON file. We’ll compose mockups and sync products to this store."
+              actionHref="/batches/new"
+              actionLabel="Create batch"
+              secondaryHref="/template-sets"
+              secondaryLabel="Manage sets"
+            />
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             {jobs.map((job) => {

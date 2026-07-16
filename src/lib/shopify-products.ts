@@ -456,8 +456,8 @@ async function publishProductToChannels(
   adminGraphql: AdminGraphql,
   productId: string,
   productStatus: string,
-): Promise<void> {
-  if (productStatus === "DRAFT") return;
+): Promise<number> {
+  if (productStatus === "DRAFT") return 0;
 
   let publicationIds: string[];
   try {
@@ -467,12 +467,12 @@ async function publishProductToChannels(
       "[shopify-sync] Could not list publications (need read_publications scope?):",
       err instanceof Error ? err.message : err,
     );
-    return;
+    return 0;
   }
 
   if (publicationIds.length === 0) {
     console.warn("[shopify-sync] No publications found on shop");
-    return;
+    return 0;
   }
 
   const result = await gql<{
@@ -499,11 +499,13 @@ async function publishProductToChannels(
       "[shopify-sync] publishablePublish errors:",
       errs.map((e) => e.message).join("; "),
     );
-  } else {
-    console.log(
-      `[shopify-sync] Published ${productId} to ${publicationIds.length} channel(s)`,
-    );
+    return 0;
   }
+
+  console.log(
+    `[shopify-sync] Published ${productId} to ${publicationIds.length} channel(s)`,
+  );
+  return publicationIds.length;
 }
 
 /**
@@ -535,8 +537,14 @@ async function upsertShopifyProduct(
     metafields: MetafieldInput[];
     productStatus?: string;
   },
-): Promise<{ id: string; handle: string }> {
+): Promise<{
+  id: string;
+  handle: string;
+  action: "created" | "updated";
+  publishedChannels: number;
+}> {
   let product: { id: string; handle: string };
+  let action: "created" | "updated" = "created";
 
   if (existingProductGid) {
     const existing = await fetchProductById(adminGraphql, existingProductGid);
@@ -551,8 +559,12 @@ async function upsertShopifyProduct(
         metafields,
         productStatus,
       });
-      await publishProductToChannels(adminGraphql, product.id, productStatus);
-      return product;
+      const publishedChannels = await publishProductToChannels(
+        adminGraphql,
+        product.id,
+        productStatus,
+      );
+      return { ...product, action: "updated", publishedChannels };
     }
     console.log(
       `[shopify-sync] Linked product missing (${existingProductGid}) — creating new`,
@@ -570,8 +582,13 @@ async function upsertShopifyProduct(
     metafields,
     productStatus,
   });
-  await publishProductToChannels(adminGraphql, product.id, productStatus);
-  return product;
+  action = "created";
+  const publishedChannels = await publishProductToChannels(
+    adminGraphql,
+    product.id,
+    productStatus,
+  );
+  return { ...product, action, publishedChannels };
 }
 
 /**
@@ -780,6 +797,13 @@ interface CreatedProductSummary {
   category: string | null;
 }
 
+export type SyncJobSummary = {
+  created: number;
+  updated: number;
+  published: number;
+  products: number;
+};
+
 /**
  * After mockups are ready: create one product per (designSku × template), then link metafields.
  * Products are created in parallel (POD_SYNC_CONCURRENCY, default 5).
@@ -788,7 +812,7 @@ export async function syncJobToShopify(
   jobId: string,
   shop: string,
   accessToken: string,
-): Promise<void> {
+): Promise<SyncJobSummary> {
   const adminGraphql = createAdminGraphql(shop, accessToken);
 
   const job = await prisma.batchJob.findUnique({
@@ -1061,6 +1085,8 @@ export async function syncJobToShopify(
         return {
           designSku,
           groupId,
+          action: product.action,
+          publishedChannels: product.publishedChannels,
           created: {
             id: product.id,
             handle: product.handle,
@@ -1077,8 +1103,14 @@ export async function syncJobToShopify(
     );
 
     const byGroup = new Map<string, CreatedProductSummary[]>();
+    let createdCount = 0;
+    let updatedCount = 0;
+    let publishedProducts = 0;
     for (const row of createdList) {
       if (!row?.created) continue;
+      if (row.action === "created") createdCount += 1;
+      else updatedCount += 1;
+      if (row.publishedChannels > 0) publishedProducts += 1;
       if (!byGroup.has(row.designSku)) byGroup.set(row.designSku, []);
       byGroup.get(row.designSku)!.push(row.created);
     }
@@ -1136,10 +1168,32 @@ export async function syncJobToShopify(
       SYNC_CONCURRENCY,
     );
 
+    const summary: SyncJobSummary = {
+      created: createdCount,
+      updated: updatedCount,
+      published: publishedProducts,
+      products: createdCount + updatedCount,
+    };
+
     await prisma.batchJob.update({
       where: { id: jobId },
-      data: { shopifySyncStatus: "synced", errorMessage: null },
+      data: {
+        shopifySyncStatus: "synced",
+        errorMessage: null,
+        syncSummary: JSON.stringify(summary),
+        lastSyncedAt: new Date(),
+      },
     });
+
+    const { logActivity } = await import("@/lib/activity");
+    await logActivity({
+      shop: job.shop,
+      action: "sync.completed",
+      message: `Synced ${summary.products} products (${summary.created} created, ${summary.updated} updated, ${summary.published} published to channels)`,
+      meta: { jobId, ...summary },
+    });
+
+    return summary;
   } catch (err) {
     await prisma.batchJob.update({
       where: { id: jobId },

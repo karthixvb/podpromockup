@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { useToast } from "@/components/ToastProvider";
 
 type JobView = {
   id: string;
@@ -15,6 +17,13 @@ type JobView = {
   failedItems: number;
   errorMessage: string | null;
   templateSetName: string | null;
+  syncSummary: {
+    created: number;
+    updated: number;
+    published: number;
+    products: number;
+  } | null;
+  lastSyncedAt: string | null;
 };
 
 type ItemCounts = {
@@ -75,6 +84,7 @@ export default function BatchDetailClient({
   items,
 }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [actionLabel, setActionLabel] = useState("");
@@ -83,6 +93,12 @@ export default function BatchDetailClient({
   const [pollUntil, setPollUntil] = useState<number>(0);
   const [showDoneFlash, setShowDoneFlash] = useState(false);
   const wasWorking = useRef(false);
+  const [confirm, setConfirm] = useState<null | {
+    title: string;
+    description: string;
+    danger?: boolean;
+    run: () => void;
+  }>(null);
 
   const job = initialJob;
   const itemCounts = initialCounts;
@@ -147,6 +163,17 @@ export default function BatchDetailClient({
           if (!res.ok) {
             setError(data.error || "Action failed");
             setActionLabel("");
+            toast.push(data.error || "Action failed", "error");
+            return;
+          }
+          if (data.message) {
+            toast.push(data.message, "success");
+          } else if (data.summary) {
+            const s = data.summary;
+            toast.push(
+              `Synced ${s.products} · ${s.created} created · ${s.updated} updated · ${s.published} published`,
+              "success",
+            );
           }
         })
         .catch(() => {
@@ -159,7 +186,7 @@ export default function BatchDetailClient({
           router.refresh();
         });
     },
-    [router],
+    [router, toast],
   );
 
   // Clear transient "updating" label once server reports idle/finished
@@ -242,6 +269,20 @@ export default function BatchDetailClient({
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        title={confirm?.title || ""}
+        description={confirm?.description}
+        danger={confirm?.danger}
+        confirmLabel="Confirm"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          const fn = confirm?.run;
+          setConfirm(null);
+          fn?.();
+        }}
+      />
+
       {error ? (
         <p className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
           {error}
@@ -286,6 +327,20 @@ export default function BatchDetailClient({
           Done — {doneCount}/{totalCount} mockups
           {job.shopifySyncStatus === "synced" ? " · Shopify synced" : ""}
         </p>
+      ) : null}
+
+      {job.syncSummary && job.shopifySyncStatus === "synced" ? (
+        <div className="rounded-lg border border-border bg-panel px-4 py-3 text-sm space-y-1">
+          <p className="font-medium">Last Shopify sync summary</p>
+          <p className="text-muted">
+            {job.syncSummary.products} products · {job.syncSummary.created}{" "}
+            created · {job.syncSummary.updated} updated ·{" "}
+            {job.syncSummary.published} published to channels
+            {job.lastSyncedAt
+              ? ` · ${new Date(job.lastSyncedAt).toLocaleString()}`
+              : ""}
+          </p>
+        </div>
       ) : null}
 
       <section className="bg-panel border border-border rounded-lg p-5 space-y-4">
@@ -419,11 +474,18 @@ export default function BatchDetailClient({
                 type="button"
                 disabled={busy || failCount === 0 || working}
                 onClick={() =>
-                  runAction(
-                    `/api/batches/${job.id}/recompose`,
-                    { scope: "failed" },
-                    "Recomposing failed items…",
-                  )
+                  setConfirm({
+                    title: "Recompose failed items?",
+                    description:
+                      "Failed mockups will be reset and composed again. Existing Shopify products are not deleted.",
+                    danger: true,
+                    run: () =>
+                      runAction(
+                        `/api/batches/${job.id}/recompose`,
+                        { scope: "failed" },
+                        "Recomposing failed items…",
+                      ),
+                  })
                 }
                 className="rounded-lg border border-danger/40 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
               >
@@ -433,11 +495,18 @@ export default function BatchDetailClient({
                 type="button"
                 disabled={busy || working}
                 onClick={() =>
-                  runAction(
-                    `/api/batches/${job.id}/recompose`,
-                    { scope: "all" },
-                    "Recomposing all items…",
-                  )
+                  setConfirm({
+                    title: "Recompose all items?",
+                    description:
+                      "All mockups in this batch will be regenerated. This can take several minutes and may use Lambda/S3 quota.",
+                    danger: true,
+                    run: () =>
+                      runAction(
+                        `/api/batches/${job.id}/recompose`,
+                        { scope: "all" },
+                        "Recomposing all items…",
+                      ),
+                  })
                 }
                 className="rounded-lg border border-danger/40 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
               >

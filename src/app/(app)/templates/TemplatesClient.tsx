@@ -4,6 +4,9 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CATEGORY_OPTIONS, PRODUCT_TYPE_OPTIONS } from "@/lib/pod";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import EmptyState from "@/components/EmptyState";
+import { useToast } from "@/components/ToastProvider";
 
 export type TemplateRow = {
   id: string;
@@ -21,12 +24,17 @@ type Props = {
 
 export default function TemplatesClient({ templates }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [productType, setProductType] = useState(PRODUCT_TYPE_OPTIONS[0]);
   const [category, setCategory] = useState("unisex");
   const [basePrice, setBasePrice] = useState("19.99");
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -54,7 +62,13 @@ export default function TemplatesClient({ templates }: Props) {
   }
 
   async function onDelete(id: string, templateName: string) {
-    if (!confirm(`Delete template “${templateName}”?`)) return;
+    setPendingDelete({ id, name: templateName });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     setBusy(true);
     setMessage("");
     try {
@@ -65,11 +79,14 @@ export default function TemplatesClient({ templates }: Props) {
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || "Could not delete template");
+        toast.push(data.error || "Could not delete template", "error");
         return;
       }
+      toast.push("Template deleted", "success");
       router.refresh();
     } catch {
       setMessage("Network error");
+      toast.push("Network error", "error");
     } finally {
       setBusy(false);
     }
@@ -77,13 +94,27 @@ export default function TemplatesClient({ templates }: Props) {
 
   return (
     <div className="space-y-8 max-w-5xl">
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Delete template?"
+        description={`“${pendingDelete?.name}” and its variants/scenes will be removed. Batches that referenced it may skip those items.`}
+        danger
+        confirmLabel="Delete"
+        busy={busy}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
+
       {message ? (
         <p className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
           {message}
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-border bg-panel p-6 shadow-sm">
+      <section
+        id="create"
+        className="rounded-xl border border-border bg-panel p-6 shadow-sm scroll-mt-6"
+      >
         <h2 className="text-lg font-semibold tracking-tight">Create template</h2>
         <p className="mt-1 text-sm text-muted">
           Each template is one garment type. Open the editor to add colors, scenes, and
@@ -153,9 +184,16 @@ export default function TemplatesClient({ templates }: Props) {
       <section className="rounded-xl border border-border bg-panel p-6 shadow-sm">
         <h2 className="text-lg font-semibold tracking-tight">All templates</h2>
         {templates.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">
-            No templates yet. Create a T-Shirt, Hoodie, or Tank, then open the editor.
-          </p>
+          <div className="mt-4">
+            <EmptyState
+              title="No templates yet"
+              description="Create a T-Shirt or Hoodie template, upload mockups, and set the print crop area before running batches."
+              actionHref="#create"
+              actionLabel="Scroll to create"
+              secondaryHref="/dashboard"
+              secondaryLabel="View setup checklist"
+            />
+          </div>
         ) : (
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {templates.map((t) => (
