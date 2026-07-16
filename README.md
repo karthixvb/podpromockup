@@ -30,7 +30,7 @@ Edit `.env`:
 | `HOST` | Public app URL, e.g. `http://localhost:3000` or `https://your.app` |
 | `SESSION_SECRET` | ≥32 random characters |
 | `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` | Partner app credentials |
-| `SCOPES` | `write_products,read_products,write_files,read_files` |
+| `SCOPES` | `write_products,read_products,write_files,read_files,read_publications,write_publications` |
 | `AWS_LAMBDA_COMPOSITE_URL` | Sharp compose Lambda URL |
 | `AWS_S3_*` | Bucket, region, keys, optional `AWS_S3_PUBLIC_BASE_URL` |
 | `POD_COMPOSE_CONCURRENCY` | Default `6` |

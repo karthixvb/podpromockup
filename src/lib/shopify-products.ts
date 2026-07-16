@@ -421,6 +421,91 @@ async function updateShopifyProduct(
   return updated.productUpdate!.product!;
 }
 
+/** List publication GIDs (Online Store, Shop, POS, …) for publishablePublish. */
+async function listPublicationIds(
+  adminGraphql: AdminGraphql,
+): Promise<string[]> {
+  const data = await gql<{
+    publications?: {
+      nodes?: { id: string; name?: string; catalog?: { title?: string } | null }[];
+    };
+  }>(
+    adminGraphql,
+    `#graphql
+    query listPublications {
+      publications(first: 50) {
+        nodes {
+          id
+          name
+          catalog { title }
+        }
+      }
+    }`,
+  );
+
+  const nodes = data.publications?.nodes || [];
+  return nodes.map((n) => n.id).filter(Boolean);
+}
+
+/**
+ * Publish product to sales channels so Channels ≠ 0 and storefront can sell.
+ * Requires read_publications + write_publications scopes.
+ * Draft products are skipped.
+ */
+async function publishProductToChannels(
+  adminGraphql: AdminGraphql,
+  productId: string,
+  productStatus: string,
+): Promise<void> {
+  if (productStatus === "DRAFT") return;
+
+  let publicationIds: string[];
+  try {
+    publicationIds = await listPublicationIds(adminGraphql);
+  } catch (err) {
+    console.warn(
+      "[shopify-sync] Could not list publications (need read_publications scope?):",
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  if (publicationIds.length === 0) {
+    console.warn("[shopify-sync] No publications found on shop");
+    return;
+  }
+
+  const result = await gql<{
+    publishablePublish?: {
+      userErrors?: { message: string }[];
+    };
+  }>(
+    adminGraphql,
+    `#graphql
+    mutation publishProduct($id: ID!, $input: [PublicationInput!]!) {
+      publishablePublish(id: $id, input: $input) {
+        userErrors { field message }
+      }
+    }`,
+    {
+      id: productId,
+      input: publicationIds.map((publicationId) => ({ publicationId })),
+    },
+  );
+
+  const errs = result.publishablePublish?.userErrors;
+  if (errs?.length) {
+    console.warn(
+      "[shopify-sync] publishablePublish errors:",
+      errs.map((e) => e.message).join("; "),
+    );
+  } else {
+    console.log(
+      `[shopify-sync] Published ${productId} to ${publicationIds.length} channel(s)`,
+    );
+  }
+}
+
 /**
  * Create or update one Shopify product for a design + garment template.
  * Pass existingProductGid to update in place (prevents handle-1 duplicates on re-sync).
@@ -451,11 +536,13 @@ async function upsertShopifyProduct(
     productStatus?: string;
   },
 ): Promise<{ id: string; handle: string }> {
+  let product: { id: string; handle: string };
+
   if (existingProductGid) {
     const existing = await fetchProductById(adminGraphql, existingProductGid);
     if (existing) {
       console.log(`[shopify-sync] Updating existing ${existing.handle}`);
-      return updateShopifyProduct(adminGraphql, existing, {
+      product = await updateShopifyProduct(adminGraphql, existing, {
         title,
         description,
         vendor,
@@ -464,12 +551,15 @@ async function upsertShopifyProduct(
         metafields,
         productStatus,
       });
+      await publishProductToChannels(adminGraphql, product.id, productStatus);
+      return product;
     }
     console.log(
       `[shopify-sync] Linked product missing (${existingProductGid}) — creating new`,
     );
   }
-  return createShopifyProduct(adminGraphql, {
+
+  product = await createShopifyProduct(adminGraphql, {
     title,
     description,
     vendor,
@@ -480,6 +570,8 @@ async function upsertShopifyProduct(
     metafields,
     productStatus,
   });
+  await publishProductToChannels(adminGraphql, product.id, productStatus);
+  return product;
 }
 
 /**

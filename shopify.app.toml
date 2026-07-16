@@ -8,7 +8,7 @@ embedded = false
 name = "POD Pro"
 
 [access_scopes]
-scopes = "write_products,read_products,write_files,read_files"
+scopes = "write_products,read_products,write_files,read_files,read_publications,write_publications"
 
 [product.metafields.app.design_sku]
 type = "single_line_text_field"
